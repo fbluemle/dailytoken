@@ -19,6 +19,11 @@ import {MainFacts} from '../components/MainFacts.tsx';
 import {Summary} from '../components/Summary';
 import {TokenStats} from '../components/TokenStats';
 import {getDailyToken} from '../services/client';
+import {
+  clearDailyTokenCache,
+  loadDailyTokenCache,
+  saveDailyTokenCache,
+} from '../services/storage';
 import {buildMatchaTradeUrl} from '../utils';
 
 function msUntilNextUtcMidnight(now: Date = new Date()): number {
@@ -44,11 +49,24 @@ function formatHms(ms: number): {h: number; m: number; s: number} {
   return {h, m, s};
 }
 
+function toUtcDateString(d: Date = new Date()): string {
+  const y = d.getUTCFullYear();
+  const m = `${d.getUTCMonth() + 1}`.padStart(2, '0');
+  const day = `${d.getUTCDate()}`.padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export const HomeScreen = () => {
   const [loading, setLoading] = useState(false);
   const [remainingMs, setRemainingMs] = useState<number | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const tokenAnim = useRef(new Animated.Value(0)).current;
+
+  const clearTokenCache = async () => {
+    await clearDailyTokenCache();
+    setToken(null);
+    setRemainingMs(null);
+  };
 
   const [token, setToken] = useState<{
     name: string;
@@ -69,12 +87,31 @@ export const HomeScreen = () => {
     summary?: string;
   } | null>(null);
 
+  // Rehydrate cached token if still in the same UTC day
+  useEffect(() => {
+    (async () => {
+      try {
+        const cached = await loadDailyTokenCache<any>();
+        if (cached?.utcDate && cached?.token) {
+          if (cached.utcDate === toUtcDateString()) {
+            setToken(cached.token);
+            setRemainingMs(msUntilNextUtcMidnight());
+          } else {
+            await clearDailyTokenCache();
+          }
+        }
+      } catch (_) {
+        // ignore cache errors
+      }
+    })();
+  }, []);
+
   const handleReveal = async () => {
     try {
       setLoading(true);
       tokenAnim.setValue(0);
       const data = await getDailyToken();
-      setToken({
+      const tokenObj = {
         name: data.name,
         symbol: data.symbol,
         priceUsd: data.priceUsd,
@@ -91,7 +128,18 @@ export const HomeScreen = () => {
         holdersCount: data.holdersCount,
         resources: data.resources,
         summary: data.summary,
-      });
+      } as const;
+      setToken(tokenObj);
+      try {
+        const payload = {
+          utcDate: toUtcDateString(),
+          token: tokenObj,
+          storedAt: Date.now(),
+        } as const;
+        await saveDailyTokenCache(payload);
+      } catch (_) {
+        // ignore storage errors
+      }
       setShowConfetti(true);
       setRemainingMs(msUntilNextUtcMidnight());
       requestAnimationFrame(() => {
@@ -121,7 +169,7 @@ export const HomeScreen = () => {
         const nextVal = (curr == null ? msUntilNextUtcMidnight() : curr) - 1000;
         if (nextVal <= 0) {
           clearInterval(id);
-          setToken(null);
+          clearTokenCache();
           return 0;
         }
         return nextVal;
