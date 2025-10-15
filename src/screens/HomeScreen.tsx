@@ -60,6 +60,7 @@ export const HomeScreen = () => {
   const [loading, setLoading] = useState(false);
   const [remainingMs, setRemainingMs] = useState<number | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [showDevControls, setShowDevControls] = useState(false);
   const tokenAnim = useRef(new Animated.Value(0)).current;
 
   const clearTokenCache = async () => {
@@ -269,9 +270,25 @@ export const HomeScreen = () => {
         <View style={{height: 8}} />
       </ScrollView>
       <View style={styles.footer}>
-        <Text style={styles.footerText}>
+        <Text
+          style={styles.footerText}
+          onLongPress={() => setShowDevControls(v => !v)}
+          accessibilityHint={
+            __DEV__ ? 'Long-press to toggle developer controls' : undefined
+          }
+        >
           For discovery & entertainment. Not investment advice.
         </Text>
+        {__DEV__ && showDevControls ? (
+          <Text
+            style={styles.devButton}
+            onPress={clearTokenCache}
+            accessibilityRole="button"
+            testID="dev-clear-token"
+          >
+            Clear token (dev)
+          </Text>
+        ) : null}
       </View>
       {/* Preload confetti composition to avoid first-play jank */}
       <LottieView
@@ -330,5 +347,12 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  devButton: {
+    textAlign: 'center',
+    color: '#666',
+    fontSize: 11,
+    marginTop: 6,
+    textDecorationLine: 'underline',
   },
 });
