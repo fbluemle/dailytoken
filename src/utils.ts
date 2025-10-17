@@ -14,7 +14,7 @@ export const usdcAddressMap: Record<number, string> = {
   1399811149: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // Solana
 };
 
-function chainIdToSlug(id?: number): string | null {
+export function chainIdToSlug(id?: number): string | null {
   switch (id) {
     case 1:
       return 'ethereum';
